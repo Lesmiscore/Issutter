@@ -20,7 +20,7 @@ def bodyInLines=body.readLines()
 
 def printStatus={Status stat->
   stat.user.with{
-    println "@$screenName $name"
+    println "@$screenName: $name"
   }
   println ""
   println stat.text
