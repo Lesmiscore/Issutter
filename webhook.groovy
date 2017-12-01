@@ -7,6 +7,7 @@
 import net.freeutils.httpserver.HTTPServer
 
 import groovy.json.*
+import java.security.*
 
 def parseTwitter={params->
   // AccessToken, AccessTokenSecret, ConsumerKey, ConsumerSecret
@@ -14,68 +15,87 @@ def parseTwitter={params->
 }
 
 def parseGitHub={params->
-  ["githubUser","githubPass","githubChecksum"].collect{ params[it] }
+  ["githubUser","githubPass","secret"].collect{ params[it] }
 }
 
 def markdownToText={md->
   for(def file: ["./escape-markdown.groovy","./escape-markdown-2.groovy"]){
+    def result=null
     file.execute().with{
       out.write(md.getBytes("utf-8"))
       out.flush()
+      out.close()
       
       if(!waitFor()){
-        return in.text
+        result = in.text
+      }else{
+        println err.text
       }
+    }
+    if(result!=null){
+      return result
     }
   }
   throw new RuntimeException("Error: Failed to convert Markdown to text")
 }.memoize()
 
 def queryTwitter={query,ak,asec,ck,cs->
-  new ProcessBuilder("./twitter.groovy").with{
+  return new ProcessBuilder("./twitter.groovy").with{
     environment().putAll([
-      "twitter4j.oauth.accessToken"       :"$ak",
-      "twitter4j.oauth.accessTokenSecret" :"$asec",
-      "twitter4j.oauth.consumerKey"       :"$ck",
-      "twitter4j.oauth.consumerSecret"    :"$cs"
+      "twitter4j.oauth.accessToken"       :"$ak".toString(),
+      "twitter4j.oauth.accessTokenSecret" :"$asec".toString(),
+      "twitter4j.oauth.consumerKey"       :"$ck".toString(),
+      "twitter4j.oauth.consumerSecret"    :"$cs".toString()
     ])
     redirectErrorStream(true)
     start()
-  }.in.text
+  }.with{
+    out.write(query.getBytes("utf-8"))
+    out.flush()
+    out.close()
+
+    waitFor()
+    return in.text
+  }
 }
 
 def server=new HTTPServer(8080)
 
 server.getVirtualHost(null).with {
-  addContext('/created'){req,resp->
+  addContext('/created',{req,resp->
     try{
       println 'Requested'
       assert req.method.toLowerCase()=="post"
       def params=req.params
-      
-      def (ak,asec,ck,cs)=parseTwitter(params)
-      def (ghUser,ghPass,ghChecksum)=parseGitHub(params)
+      def check=params.check.bytes
+      assert MessageDigest.getInstance("sha-256").digest(check)
+          .encodeHex().toString().toLowerCase()=="d2cd4ea23cbdf757840c506ae2f305fe652a09c99ebeb5ebc3cd0defda48ecaa"
       
       def json=new JsonSlurper().parseText(req.body.text)
-      def issue=json.issue
-      // Checks that we have called from the right author
-      assert issue.user.name.toLowerCase()==ghUser.toLowerCase()
-      // Checks that the user *CREATED* the issue
-      assert issue.action=="opened"
-      // Checks that the issue is not closed
-      assert !issue.closed_at
       
       resp.headers.add("Content-Length","0")
       resp.sendHeaders 200
       
       new Thread({
         try{
+          def twitterTokens=parseTwitter(params)
+          def (ghUser,ghPass,ghChecksum)=parseGitHub(params)
+          assert true
+
+          def issue=json.issue
+          // Checks that we have called from the right author
+          assert issue.user.login.toLowerCase()==ghUser.toLowerCase()
+          // Checks that the user *CREATED* the issue
+          assert json.action=="opened"
+          // Checks that the issue is not closed
+          //assert !issue.closed_at
+
           def issueBody=issue.body
           def query=markdownToText(issueBody)
-          def replyForIssue="Auto Message\n\n```\n"+queryTwitter(query)+"\n```\n"
+          def replyForIssue="Auto Message\n\n```\n"+queryTwitter(query,*twitterTokens)+"\n```\n"
           
           def commentUrl=issue.comments_url
-          def githubAuth="$githubUser:$githubPass".bytes.encodeBase64()
+          def githubAuth="$ghUser:$ghPass".bytes.encodeBase64()
           new URL(commentUrl).openConnection().with{
             setRequestProperty("Authorization", "Basic $githubAuth")
             requestMethod="post"
@@ -93,7 +113,7 @@ server.getVirtualHost(null).with {
       throw e
     }
     0
-  }
+  },"POST")
 }
 
 server.start()

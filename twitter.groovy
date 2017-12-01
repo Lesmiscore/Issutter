@@ -7,6 +7,8 @@ import twitter4j.*
 
 import java.text.*
 
+println System.env
+
 def twitter=TwitterFactory.singleton
 
 def input=System.in.text
