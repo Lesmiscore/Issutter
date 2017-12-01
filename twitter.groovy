@@ -29,6 +29,25 @@ def printStatus={Status stat->
   println "RT $stat.retweetCount, Fav $stat.favoriteCount"
 }
 
+def printStatusIterated={List<Status> stats->
+  def index=0
+  stats.each{tw->
+    index++
+    println "========== ($index/${stats.size()})"
+    if(tw.retweetedStatus){
+      printStatus tw.retweetedStatus
+    }else if(tw.quotedStatus){
+      printStatus tw
+      println "~~~"
+      printStatus tw.quotedStatus
+    }else{
+      printStatus tw
+    }
+  }
+}
+
+def bodyInLines=body.readLines()
+
 switch(head.toLowerCase()){
 ////
 case "auto message":
@@ -41,7 +60,6 @@ case "tweet":
   break
 ////
 case "rentwi":
-  def bodyInLines=body.readLines()
   def tweets=[""]
   bodyInLines.each{ln->
     if(ln.matches("%{3,}")){
@@ -76,23 +94,43 @@ case "rentwi":
   println "Tweeting finished"
   break
 ////
-case "mylast10":
-  def paging=new Paging(1,10)
-  def statuses=twitter.getUserTimeline(twitter.verifyCredentials().screenName,paging)
-  def index=0
-  statuses.each{tw->
-    index++
-    println "========== ($index/10)"
-    if(tw.retweetedStatus){
-      printStatus tw.retweetedStatus
-    }else if(tw.quotedStatus){
-      printStatus tw
-      println "~~~"
-      printStatus tw.quotedStatus
-    }else{
-      printStatus tw
-    }
+case "mylast":
+  def count=20
+  if(bodyInLines){
+    try{
+      count=Integer.valueOf(bodyInLines[0])
+    }catch(Throwable e){}
   }
+  def paging=new Paging(1,count)
+  def statuses=twitter.getUserTimeline(twitter.verifyCredentials().screenName,paging)
+  printStatusIterated statuses
   break
 ////
+case "oneslast":
+  def count=20
+  if(bodyInLines.size()>1){
+    try{
+      count=Integer.valueOf(bodyInLines[1])
+    }catch(Throwable e){}
+  }
+  def paging=new Paging(1,count)
+  def statuses=twitter.getUserTimeline(bodyInLines[0],paging)
+  printStatusIterated statuses
+  break
+////
+case "timeline":
+  def count=20
+  if(bodyInLines){
+    try{
+      count=Integer.valueOf(bodyInLines[0])
+    }catch(Throwable e){}
+  }
+  def paging=new Paging(1,count)
+  def statuses=twitter.getHomeTimeline(paging)
+  printStatusIterated statuses
+  break
+////
+default:
+  // maybe a real issue...
+  break
 }
