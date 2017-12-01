@@ -16,6 +16,7 @@ def lines=input.readLines()
 def head=lines[0]
 
 def body=lines.drop(1).join("\n")
+def bodyInLines=body.readLines()
 
 def printStatus={Status stat->
   stat.user.with{
@@ -46,7 +47,15 @@ def printStatusIterated={List<Status> stats->
   }
 }
 
-def bodyInLines=body.readLines()
+def parseCount={int index,int defaultValue=20->
+  int count=defaultValue
+  if(bodyInLines.size()>index){
+    try{
+      count=Integer.valueOf(bodyInLines[index])
+    }catch(Throwable e){}
+  }
+  return count
+}
 
 switch(head.toLowerCase()){
 ////
@@ -95,36 +104,21 @@ case "rentwi":
   break
 ////
 case "mylast":
-  def count=20
-  if(bodyInLines){
-    try{
-      count=Integer.valueOf(bodyInLines[0])
-    }catch(Throwable e){}
-  }
+  def count=parseCount(0)
   def paging=new Paging(1,count)
   def statuses=twitter.getUserTimeline(twitter.verifyCredentials().screenName,paging)
   printStatusIterated statuses
   break
 ////
 case "oneslast":
-  def count=20
-  if(bodyInLines.size()>1){
-    try{
-      count=Integer.valueOf(bodyInLines[1])
-    }catch(Throwable e){}
-  }
+  def count=parseCount(1)
   def paging=new Paging(1,count)
   def statuses=twitter.getUserTimeline(bodyInLines[0],paging)
   printStatusIterated statuses
   break
 ////
 case "timeline":
-  def count=20
-  if(bodyInLines){
-    try{
-      count=Integer.valueOf(bodyInLines[0])
-    }catch(Throwable e){}
-  }
+  def count=parseCount(0)
   def paging=new Paging(1,count)
   def statuses=twitter.getHomeTimeline(paging)
   printStatusIterated statuses
