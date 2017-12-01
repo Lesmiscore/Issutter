@@ -84,11 +84,9 @@ server.getVirtualHost(null).with {
 
           def issue=json.issue
           // Checks that we have called from the right author
-          assert issue.user.login.toLowerCase()==ghUser.toLowerCase()
+          if(issue.user.login.toLowerCase()!=ghUser.toLowerCase())return
           // Checks that the user *CREATED* the issue
-          assert json.action=="opened"
-          // Checks that the issue is not closed
-          //assert !issue.closed_at
+          if(json.action!="opened")return
 
           def issueBody=issue.body
           def query=markdownToText(issueBody)
