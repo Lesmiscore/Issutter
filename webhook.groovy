@@ -78,7 +78,7 @@ def server=new HTTPServer(8080)
 server.getVirtualHost(null).with {
   addContext('/created',{req,resp->
     try{
-      println 'Request: Issue Created'
+      println 'Request: Issue'
       assert req.method.toLowerCase()=="post"
       def params=req.params
       def check=params.check.bytes
@@ -93,17 +93,18 @@ server.getVirtualHost(null).with {
       new Thread({
         try{
           def twitterTokens=parseTwitter(params)
-          def (ghUser,ghPass)=parseGitHub(params)
+          def ghCred=parseGitHub(params)
           assert true
 
           def issue=json.issue
           // Checks that we have called from the right author
-          if(issue.user.login.toLowerCase()!=ghUser.toLowerCase())return
+          if(issue.user.login.toLowerCase()!=ghCred[0].toLowerCase())return
           // Checks that the user *CREATED* the issue
           if(json.action!="opened")return
 
           def issueBody=issue.body
           def query=markdownToText(issueBody)
+          if(query.readLines()[0].toLowerCase()=="auto message")return
           def replyForIssue="Auto Message\n\n```\n"+queryTwitter(query,*twitterTokens)+"\n```\n"
           
           def commentUrl=issue.comments_url
@@ -120,7 +121,7 @@ server.getVirtualHost(null).with {
   },"POST")
   addContext('/commented',{req,resp->
     try{
-      println 'Request: Issue Commented'
+      println 'Request: Issue Comment'
       assert req.method.toLowerCase()=="post"
       def params=req.params
       def check=params.check.bytes
@@ -140,15 +141,16 @@ server.getVirtualHost(null).with {
 
           def comment=json.comment
           // Checks that we have called from the right author
-          if(comment.user.login.toLowerCase()!=ghUser.toLowerCase())return
+          if(comment.user.login.toLowerCase()!=ghCred[0].toLowerCase())return
           // Checks that the user *COMMENTED* the issue
           if(json.action!="created")return
 
           def commentBody=comment.body
           def query=markdownToText(commentBody)
+          if(query.readLines()[0].toLowerCase()=="auto message")return
           def replyForIssue="Auto Message\n\n```\n"+queryTwitter(query,*twitterTokens)+"\n```\n"
           
-          def commentUrl=comment.issue_url
+          def commentUrl=json.issue.comments_url
           commentIssue(*ghCred,commentUrl,replyForIssue)
         }catch(Throwable e){
           e.printStackTrace()
