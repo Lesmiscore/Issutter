@@ -42,13 +42,13 @@ case "tweet":
 ////
 case "rentwi":
   def bodyInLines=body.readLines()
-  def tweets=[false]
+  def tweets=[""]
   bodyInLines.each{ln->
-    if(ln.matches("={3,}")){
-      tweets.add(false)
+    if(ln.matches("%{3,}")){
+      tweets.add("")
     }else{
       def last=tweets.last()
-      if(last){
+      if(last.trim()){
         tweets[tweets.size()-1]+="\n$ln"
       }else{
         tweets[tweets.size()-1]=ln
@@ -63,8 +63,8 @@ case "rentwi":
       index++
       println "Working for #$index"
       if(lastTweet){
-        def status=new StatusUpdate(poiner)
-        status.inReplyToStatusId=lastTweet.inReplyToStatusId
+        def status=new StatusUpdate(pointer)
+        status.inReplyToStatusId=lastTweet.id
         lastTweet=twitter.updateStatus(status)
       }else{
         lastTweet=twitter.updateStatus(pointer)
