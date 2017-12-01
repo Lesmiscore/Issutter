@@ -9,13 +9,15 @@ import net.freeutils.httpserver.HTTPServer
 import groovy.json.*
 import java.security.*
 
+def checkHash="d2cd4ea23cbdf757840c506ae2f305fe652a09c99ebeb5ebc3cd0defda48ecaa"
+  
 def parseTwitter={params->
   // AccessToken, AccessTokenSecret, ConsumerKey, ConsumerSecret
   ["twitterAk","twitterAs","twitterCk","twitterCs"].collect{ params[it] }
 }
 
 def parseGitHub={params->
-  ["githubUser","githubPass","secret"].collect{ params[it] }
+  ["githubUser","githubPass"].collect{ params[it] }
 }
 
 def markdownToText={md->
@@ -59,12 +61,24 @@ def queryTwitter={query,ak,asec,ck,cs->
   }
 }
 
+def commentIssue={String ghUser,String ghPass,String url,String replyForIssue->
+  def githubAuth="$ghUser:$ghPass".bytes.encodeBase64()
+  new URL(url).openConnection().with{
+    setRequestProperty("Authorization", "Basic $githubAuth")
+    requestMethod="post"
+    doOutput = true
+    doInput = true
+    outputStream.write JsonOutput.toJson([body: replyForIssue]).bytes
+    inputStream.text
+  }
+}
+
 def server=new HTTPServer(8080)
 
 server.getVirtualHost(null).with {
   addContext('/created',{req,resp->
     try{
-      println 'Requested'
+      println 'Request: Issue Created'
       assert req.method.toLowerCase()=="post"
       def params=req.params
       def check=params.check.bytes
@@ -79,7 +93,7 @@ server.getVirtualHost(null).with {
       new Thread({
         try{
           def twitterTokens=parseTwitter(params)
-          def (ghUser,ghPass,ghChecksum)=parseGitHub(params)
+          def (ghUser,ghPass)=parseGitHub(params)
           assert true
 
           def issue=json.issue
@@ -93,15 +107,49 @@ server.getVirtualHost(null).with {
           def replyForIssue="Auto Message\n\n```\n"+queryTwitter(query,*twitterTokens)+"\n```\n"
           
           def commentUrl=issue.comments_url
-          def githubAuth="$ghUser:$ghPass".bytes.encodeBase64()
-          new URL(commentUrl).openConnection().with{
-            setRequestProperty("Authorization", "Basic $githubAuth")
-            requestMethod="post"
-            doOutput = true
-            doInput = true
-            outputStream.write JsonOutput.toJson([body: replyForIssue]).bytes
-            inputStream.text
-          }
+          commentIssue(*ghCred,commentUrl,replyForIssue)
+        }catch(Throwable e){
+          e.printStackTrace()
+        }
+      }).start()
+    }catch(Throwable e){
+      e.printStackTrace()
+      throw e
+    }
+    0
+  },"POST")
+  addContext('/commented',{req,resp->
+    try{
+      println 'Request: Issue Commented'
+      assert req.method.toLowerCase()=="post"
+      def params=req.params
+      def check=params.check.bytes
+      assert MessageDigest.getInstance("sha-256").digest(check)
+          .encodeHex().toString().toLowerCase()==checkHash
+      
+      def json=new JsonSlurper().parseText(req.body.text)
+      
+      resp.headers.add("Content-Length","0")
+      resp.sendHeaders 200
+      
+      new Thread({
+        try{
+          def twitterTokens=parseTwitter(params)
+          def ghCred=parseGitHub(params)
+          assert true
+
+          def comment=json.comment
+          // Checks that we have called from the right author
+          if(comment.user.login.toLowerCase()!=ghUser.toLowerCase())return
+          // Checks that the user *COMMENTED* the issue
+          if(json.action!="created")return
+
+          def commentBody=comment.body
+          def query=markdownToText(commentBody)
+          def replyForIssue="Auto Message\n\n```\n"+queryTwitter(query,*twitterTokens)+"\n```\n"
+          
+          def commentUrl=comment.issue_url
+          commentIssue(*ghCred,commentUrl,replyForIssue)
         }catch(Throwable e){
           e.printStackTrace()
         }
