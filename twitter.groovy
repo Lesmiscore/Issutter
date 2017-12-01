@@ -30,8 +30,12 @@ def printStatus={Status stat->
   println "RT $stat.retweetCount, Fav $stat.favoriteCount"
 }
 
-switch(head){
+switch(head.toLowerCase()){
 ////
+case "auto message":
+case "auto":
+  System.exit(0)
+  break
 case "tweet":
   twitter.updateStatus(body)
   println "Tweeted"
