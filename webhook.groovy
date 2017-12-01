@@ -40,13 +40,13 @@ def markdownToText={md->
 }.memoize()
 
 def queryTwitter={query,ak,asec,ck,cs->
-  return new ProcessBuilder("./twitter.groovy").with{
-    environment().putAll([
-      "twitter4j.oauth.accessToken"       :"$ak".toString(),
-      "twitter4j.oauth.accessTokenSecret" :"$asec".toString(),
-      "twitter4j.oauth.consumerKey"       :"$ck".toString(),
-      "twitter4j.oauth.consumerSecret"    :"$cs".toString()
-    ])
+  def tokens=[
+    "twitter4j.oauth.accessToken"       :"$ak",
+    "twitter4j.oauth.accessTokenSecret" :"$asec".toString(),
+    "twitter4j.oauth.consumerKey"       :"$ck".toString(),
+    "twitter4j.oauth.consumerSecret"    :"$cs".toString()
+  ].collect { "-D$it.key=$it.value".toString() }
+  return new ProcessBuilder("groovy",*tokens,"./twitter.groovy").with{
     redirectErrorStream(true)
     start()
   }.with{

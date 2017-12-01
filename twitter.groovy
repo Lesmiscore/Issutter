@@ -6,9 +6,6 @@
 import twitter4j.*
 
 import java.text.*
-
-println System.env
-
 def twitter=TwitterFactory.singleton
 
 def input=System.in.text
@@ -28,7 +25,7 @@ def printStatus={Status stat->
   println stat.text
   println ""
   def sdf=new SimpleDateFormat("yyyy/MM/dd HH:mm:ss z")
-  println sdf.format(stat.date)
+  println sdf.format(stat.createdAt)
   println "RT $stat.retweetCount, Fav $stat.favoriteCount"
 }
 
